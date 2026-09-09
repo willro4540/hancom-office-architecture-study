@@ -14,8 +14,18 @@ COM-인터롭 어셈블리로 변환하고, `System.Reflection`으로 그 어셈
 인터페이스/메서드 목록을 뽑았다. 이는 "타입 라이브러리에 선언된 그대로"를
 정확히 뽑아내는 결정적(deterministic) 변환이므로 (a) 등급으로 채택한다.
 
-결과: **총 259개 타입**(대부분 `dispinterface`/coclass), 그중 사람이 읽을 수
-있는 이름의 자동화 오브젝트가 약 230여 개. 전체 목록은 매우 방대하므로(문서
+결과: **총 258개 타입**(대부분 `dispinterface`/coclass), 그중 사람이 읽을 수
+있는 이름의 자동화 오브젝트가 약 230여 개.
+
+> **재검증 수정(2026-09-09)**: 원래 이 문서는 "총 259개"라고 기록했으나,
+> 적대적 재검증 과정에서 `comtypes.typeinfo.LoadTypeLibEx` +
+> `ITypeLib::GetTypeInfoCount()`로 같은 `.tlb` 파일을 독립적인 방법(원래는
+> .NET `TypeLibConverter`, 재검증은 Python `comtypes`)으로 다시 세어보니
+> **258개**였다(전부 읽을 수 있는 이름 보유, 빈 이름 0개). 1개 차이는 두 변환
+> 경로(`TypeLibConverter`→어셈블리→리플렉션 vs. `ITypeLib` 직접 열거)가 합성
+> 타입(예: 이벤트 인터페이스, `_Object` 계열)을 다르게 세는 데서 온 것으로
+> 추정되나, 정확한 원인은 이번 재검증에서도 특정하지 못했다(d, 미확인). "약
+> 230여 개"라는 근사치 자체는 두 방법 모두와 부합하므로 그대로 둔다. 전체 목록은 매우 방대하므로(문서
 편집·표·양식·그리기·맞춤법 등 워드프로세서 기능 전반을 그대로 노출) 여기서는
 **보안 관점에서 눈에 띄는 것만** 추린다. 전체 인터페이스 이름 목록은
 `C:\Users\user\AppData\Local\Temp\claude-research\hancom-ghidra-hwpcore\tlb\HwpAutomationInterop.dll`
@@ -102,6 +112,16 @@ PE 임포트 테이블에는 `HncVBA.dll`이 나타나지 않는다(정적 PE �
 표준 MSVC 런타임/COM만 링크하며 익스포트가 2298개(a, PE 익스포트 테이블
 직접 카운트)에 달해 — VBA 호환 엔진치고 상당히 큰 표면이지만, 이번 세션에서
 그 내부 구현까지는 분석하지 않았다(범위 밖으로 판단, 시간 제약).
+
+**2026-09-09 적대적 재검증에서 수정**: 익스포트 2298개(a)는 `pefile`로
+`HncVBA.dll`을 다시 열어 재카운트해 정확히 일치함을 확인했다. 다만 "임포트
+테이블상 `HncVBAWForms.dll`, `TypeLibCapsuler.dll`, 표준 MSVC 런타임/COM만
+링크"라는 서술은 불완전했다 — 실제 임포트 DLL 목록을 다시 뽑아보니
+`HncFoundation.dll`(Hancom 내부 공용 라이브러리, "표준 MSVC 런타임/COM"이
+아님)과 `SHLWAPI.dll`(Windows Shell 표준 API)도 링크되어 있다(a, 재실측).
+즉 `HncVBA.dll`은 순수하게 자체 완결된(self-contained) VBA 엔진이 아니라
+Hancom 공용 파운데이션 계층(`HncFoundation.dll`)에도 의존한다 — 원문의
+"표준 MSVC 런타임/COM만"이라는 표현을 정정한다.
 
 ## 5. AI 커맨드 — 2024년형 신규 자동화 표면 (a, 존재만 확인)
 

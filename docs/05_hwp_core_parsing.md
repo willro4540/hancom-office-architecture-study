@@ -55,9 +55,14 @@ JS)은 전혀 분석하지 못한다(확인됨 — 실제 실행해서 관찰). 
 분석은 전부 `Hwp.exe`가 아니라 순수 네이티브 DLL(`HNCFilter.dll`,
 `HMConvDll.dll` 등)을 대상으로 한 것이다.
 
-버전 정보(문자열 리소스에서 확인, a): `ProductName=HWP 2024`,
-`FileVersion=ProductVersion=13.0.0.3901`, `CompanyName=Hancom Inc(HNC).`,
+버전 정보(문자열 리소스에서 확인, a — 2026-09-09 적대적 재검증 시 `pefile`로
+`Hwp.exe`의 VS_VERSION_INFO를 다시 파싱해 필드명까지 정확히 대조함): `ProductName=HWP`,
+`FileDescription=HWP 2024`, `FileVersion=ProductVersion=13.0.0.3901`,
+`CompanyName=Hancom Inc(HNC).`,
 `LegalCopyright=Copyright 1989. Hancom Inc. All rights reserved.`
+(최초 작성 시 `ProductName`을 `HWP 2024`로 잘못 표기했으나, 실제 `ProductName` 필드값은
+`HWP`이고 `HWP 2024`는 별도 필드인 `FileDescription`의 값이었다 — 2026-09-09 재검증에서
+발견 후 수정)
 
 ## 1. OLE2/CFBF 컴파운드 파일 구조 지원 — 코드 레벨 확인
 
@@ -116,8 +121,18 @@ diff는 하지 않았음).
 `HNCFilter.dll`의 zip 관련 C++ 클래스 mangled export도 확인했다: `CUnZip@OWPML`,
 `CZip@OWPML` (a). **OWPML**(Open Word-Processor Markup Language)이라는
 네임스페이스가 실제 코드에 존재한다는 것은, 공개적으로 알려진 "HWPX = OWPML
-기반 zip+XML 포맷"이라는 설명과 부합한다(b — 네임스페이스 존재는 (a), 그것이
-정확히 "HWPX 표준 임포트/익스포트 담당 클래스"라는 의미 대응은 강한 추론).
+기반 zip+XML 포맷"이라는 설명과 부합한다(네임스페이스 존재 자체는 (a); 그것이
+정확히 "HWPX 표준 임포트/익스포트 담당 클래스"라는 의미 대응은 강한 추론(b)).
+
+**2026-09-09 적대적 재검증에서 등급 상향**: "HWPX = OWPML 기반 zip+XML"이라는
+설명 자체를 한컴 공식 출처로 재확인했다 — 한컴 공식 기술 블로그
+(`tech.hancom.com/hwpxformat/`, WebFetch로 재확인)에 "한글의 표준 포맷
+HWPX는 국가 표준(KS X 6101)인 OWPML을 따르는 개방형 문서 포맷입니다"와
+"HWPX는 ZIP 파일 구조를 가진 XML 기반 포맷"이라는 문장이 원문 그대로
+존재한다. 따라서 "HWPX = OWPML 기반 zip+XML 포맷"이라는 배경 지식 부분은
+(c)/(b) 추론이 아니라 **(a) 공식 문서에 명시됨**으로 상향한다. (코드 안의
+`CUnZip@OWPML`/`CZip@OWPML` 클래스가 정확히 이 표준의 구현체라는 의미
+대응 자체는 여전히 (b) 강한 추론으로 유지.)
 
 리터럴 MIME 문자열도 확인됨(a): `application/hwp+zip`,
 `application/hwpml-package+xml` — HWPX가 zip 컨테이너 기반이라는 공개 설명과
@@ -134,8 +149,11 @@ XML_UNICODE / XML_UNICODE_WCHAR_T
 not well-formed (invalid token) / mismatched tag / duplicate attribute ...
 ```
 
-Expat 2.0.1은 2007년경 릴리스된 구버전이다(c — 릴리스 연도는 공개 자료 기준,
-이 세션에서 재검증 안 함). HWPX(zip+XML) 파싱 경로 어딘가에서 이 Expat이
+Expat 2.0.1은 2007년경 릴리스된 구버전이다(b — 2026-09-09 WebSearch로
+재확인: Expat 2.0.1은 2007-06-06경 배포된 버전이라는 공개 자료 다수와 일치.
+릴리스 자체는 SourceForge 등 3rd-party 배포 이력 기반이라 완전한 (a)는
+아니지만, 최초 작성 시 (c)로 두고 "재검증 안 함"이라 명시했던 것에서
+한 단계 상향). HWPX(zip+XML) 파싱 경로 어딘가에서 이 Expat이
 실제로 호출될 것으로 강하게 추정되나(b), 어느 함수가 Expat API를 직접
 호출하는지 콜그래프까지는 이번 세션에서 추적하지 못했다(미확인).
 
@@ -149,7 +167,16 @@ Expat 2.0.1은 2007년경 릴리스된 구버전이다(c — 릴리스 연도는
 - `HwpAutomation.dll`: 위에 더해 `HWP Document File V1.10 `, `V1.20 `,
   `B4HWP Document File V3.00 ` (더 오래된 버전까지 인식 대상에 포함되어 있음을
   시사)
-- `HwpApp.dll`/`HwpAppModule.dll`: 위와 동일한 시그니처 집합 재확인
+- `HwpAppModule.dll`: `HNCFilter.dll`/`HwpAutomation.dll`과 동일한 폭넓은
+  시그니처 집합(`V1.10 `, `V1.20 `, `V2.00 `, `V2.10 `, `V3.00 ` 전부) 재확인(a)
+
+**2026-09-09 적대적 재검증에서 수정**: 최초 작성 시 "`HwpApp.dll`/`HwpAppModule.dll`은
+위와 동일한 시그니처 집합을 재확인"이라고 뭉뚱그려 썼으나, `HwpApp.dll`을 실제로
+다시 바이트 스캔해보니 `V1.10 `/`V1.20 `/`V2.00 `/`V2.10 ` 문자열은 전혀 없고
+`HWP Document File`(버전 없는 형태)과 `HWP Document File V3.00 `,
+`HWP Style File   V3.00 ` 뿐이다 — 즉 `HwpApp.dll`은 나머지 바이너리들보다
+훨씬 좁은 부분집합만 갖는다(a, 재실측). `HwpAppModule.dll`은 원래 주장대로
+전체 집합을 갖고 있음을 재확인했다(a).
 
 **주의**: 이건 "이런 문자열이 바이너리 안에 존재한다"는 사실만 (a)로 확인한
 것이다. "코드가 파일의 정확히 몇 바이트째부터 몇 바이트를 읽어 이 문자열과
@@ -167,11 +194,21 @@ int __cdecl fnFiltering(ushort *srcPath, ushort *dstPath, int formatCode, int ar
 (감지 성공 시) "포맷 변환 함수" 쌍을 호출하는 디스패치 구조임을 코드 레벨에서
 직접 확인했다(a). 예를 들어 `formatCode==100`일 때는 `FUN_10091300` **AND**
 (실패 시) `FUN_100852a0` 두 개의 감지 함수를 순차 시도한 뒤에야
-`FUN_1000d150`으로 변환하는데, 다른 대부분의 `formatCode`는 감지 함수 하나만
-쓴다 — 100번이 특별 취급되는 것으로 보아 네이티브 HWP 포맷일 가능성이
-있으나(b, 정황 추론), **각 `formatCode`가 실제로 어떤 파일 포맷(HWP/DOC/RTF
-등)에 대응하는지는 이번 세션에서 특정하지 못했다(d, 미확인)** — 문자열
-테이블이나 리소스에서 명칭 매핑 테이블을 찾지 못했다.
+`FUN_1000d150`으로 변환한다.
+
+**2026-09-09 적대적 재검증에서 수정**: 최초 작성 시 "100번만 감지 함수를 두 개
+쓰는 특별 케이스"라고 서술했으나, `fnFiltering`의 전체 디스패치를
+(Ghidra survey 산출물 `HNCFilter.dll.survey.txt`로) 다시 끝까지 읽어보니
+`formatCode==200`도 동일하게 `FUN_101051c0` **AND** (실패 시) `FUN_10104dd0`
+두 개의 감지 함수를 순차 시도하는 구조다. 즉 "감지 함수 2개짜리 특별
+케이스"는 100 하나가 아니라 100/200 두 개이며(나머지 300/400/500/600/700/
+800/900/1000/1100/1200/1300은 감지 함수 하나만 사용, a), "100번이 유일하게
+특별 취급되므로 네이티브 HWP 포맷일 것"이라는 기존의 추론 근거는 **약화된다**
+— 200번도 같은 특별 취급을 받는 이유가 무엇인지 모르는 이상, 감지 함수
+개수만으로 100=네이티브 HWP라고 추정하는 것은 (b)가 아니라 (c)/거의 (d)에
+가깝다. **각 `formatCode`가 실제로 어떤 파일 포맷(HWP/DOC/RTF 등)에
+대응하는지는 이번 세션에서도 특정하지 못했다(d, 미확인)** — 문자열 테이블이나
+리소스에서 명칭 매핑 테이블을 찾지 못했다.
 
 ## 5. 서드파티 라이브러리/저작권 고지 종합 (topic 4)
 
